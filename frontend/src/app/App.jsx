@@ -24,6 +24,8 @@ function App() {
   const [chatInput, setChatInput] = useState("");
   const [copyState, setCopyState] = useState("Copy Link");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [joinError, setJoinError] = useState("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   const [realtime, setRealtime] = useState(() => ({
     doc: null,
@@ -41,9 +43,35 @@ function App() {
     if (typeof window === "undefined") {
       return;
     }
-    const isDesktop = window.matchMedia("(min-width: 768px)").matches;
-    setIsSidebarOpen(isDesktop);
+    const media = window.matchMedia("(min-width: 768px)");
+    const syncSidebarByViewport = () => {
+      setIsSidebarOpen(media.matches);
+    };
+
+    syncSidebarByViewport();
+    media.addEventListener("change", syncSidebarByViewport);
+
+    return () => {
+      media.removeEventListener("change", syncSidebarByViewport);
+    };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const isMobile = !window.matchMedia("(min-width: 768px)").matches;
+    const previousOverflow = document.body.style.overflow;
+
+    if (isMobile && isSidebarOpen && sessionReady) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isSidebarOpen, sessionReady]);
 
   useEffect(() => {
     setFormSession({ username: session.username, room: session.room });
@@ -61,6 +89,9 @@ function App() {
       doc,
       {
         autoConnect: true,
+        auth: {
+          username: session.username,
+        },
       },
     );
 
@@ -79,6 +110,19 @@ function App() {
       name: session.username,
       color: getUserColor(session.username),
     });
+
+    const handleProviderConnectError = (error) => {
+      const message = String(error?.message || "").toLowerCase();
+      if (!message.includes("username") || !message.includes("taken")) {
+        return;
+      }
+
+      setJoinError(
+        "Username already exists in this room. Choose a different name.",
+      );
+      setSession({ username: "", room: session.room });
+      upsertSessionInUrl("", session.room);
+    };
 
     const syncLanguage = () => {
       setLanguage(metaMap.get("language") || "javascript");
@@ -109,6 +153,7 @@ function App() {
     metaMap.observe(syncLanguage);
     chatArray.observe(syncMessages);
     provider.awareness.on("change", syncUsers);
+    provider.socket.on("connect_error", handleProviderConnectError);
 
     syncLanguage();
     syncMessages();
@@ -120,6 +165,7 @@ function App() {
       metaMap.unobserve(syncLanguage);
       chatArray.unobserve(syncMessages);
       provider.awareness.off("change", syncUsers);
+      provider.socket.off("connect_error", handleProviderConnectError);
       provider.awareness.setLocalState(null);
       provider.destroy();
       doc.destroy();
@@ -144,11 +190,83 @@ function App() {
 
   const isConnected = realtime.provider?.socket?.connected ?? false;
 
-  const joinSession = (event) => {
+  const checkUsernameAvailability = (room, username) =>
+    new Promise((resolve) => {
+      const probeDoc = new Y.Doc();
+      const probeProvider = new SocketIOProvider(
+        "ws://localhost:3001",
+        room,
+        probeDoc,
+        {
+          autoConnect: true,
+          auth: {
+            username,
+          },
+        },
+      );
+      let settled = false;
+
+      const cleanup = (result) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutId);
+        probeProvider.socket.off("connect", onConnect);
+        probeProvider.socket.off("connect_error", onConnectError);
+        probeProvider.destroy();
+        probeDoc.destroy();
+        resolve(result);
+      };
+
+      const onConnect = () => {
+        cleanup({ available: true, reason: "ok" });
+      };
+
+      const onConnectError = (error) => {
+        const message = String(error?.message || "").toLowerCase();
+        cleanup({
+          available: false,
+          reason:
+            message.includes("username") && message.includes("taken")
+              ? "taken"
+              : "connection",
+        });
+      };
+
+      const timeoutId = window.setTimeout(() => {
+        cleanup({ available: false, reason: "timeout" });
+      }, 2000);
+
+      probeProvider.socket.on("connect", onConnect);
+      probeProvider.socket.on("connect_error", onConnectError);
+    });
+
+  const joinSession = async (event) => {
     event.preventDefault();
     const username = formSession.username.trim();
     const room = formSession.room.trim();
+    setJoinError("");
+
     if (!username || !room) {
+      setJoinError("Please enter both username and room.");
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    const availability = await checkUsernameAvailability(room, username);
+    setIsCheckingUsername(false);
+
+    if (!availability.available) {
+      if (availability.reason === "taken") {
+        setJoinError(
+          "Username already exists in this room. Choose a different name.",
+        );
+      } else {
+        setJoinError(
+          "Could not verify room users right now. Please try again.",
+        );
+      }
       return;
     }
 
@@ -158,7 +276,10 @@ function App() {
 
   const copyRoomLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      const roomOnlyUrl = new URL(window.location.href);
+      roomOnlyUrl.searchParams.set("room", session.room);
+      roomOnlyUrl.searchParams.delete("username");
+      await navigator.clipboard.writeText(roomOnlyUrl.toString());
       setCopyState("Copied");
       window.setTimeout(() => setCopyState("Copy Link"), 1200);
     } catch {
@@ -227,6 +348,9 @@ function App() {
             <p className="text-sm text-neutral-400">
               Enter your username and room to start real-time collaboration.
             </p>
+            <p className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
+              Username must be unique inside the room.
+            </p>
             <div className="space-y-2">
               <label htmlFor="username" className="text-sm text-neutral-300">
                 Username
@@ -240,6 +364,8 @@ function App() {
                     username: event.target.value,
                   }))
                 }
+                onInput={() => setJoinError("")}
+                disabled={isCheckingUsername}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                 placeholder="Tej"
               />
@@ -257,15 +383,23 @@ function App() {
                     room: event.target.value,
                   }))
                 }
+                onInput={() => setJoinError("")}
+                disabled={isCheckingUsername}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                 placeholder="abc"
               />
             </div>
+            {joinError ? (
+              <p className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                {joinError}
+              </p>
+            ) : null}
             <button
               type="submit"
-              className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 font-medium text-neutral-900 transition hover:bg-cyan-400"
+              disabled={isCheckingUsername}
+              className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 font-medium text-neutral-900 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
             >
-              Enter Room
+              {isCheckingUsername ? "Checking username..." : "Enter Room"}
             </button>
           </form>
         </div>

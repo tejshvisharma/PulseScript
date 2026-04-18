@@ -17,7 +17,7 @@ function Sidebar({
 }) {
   return (
     <aside className="h-full w-full">
-      <div className="flex h-full flex-col gap-4 rounded-2xl border border-neutral-800/80 bg-neutral-900/70 p-4 shadow-2xl ring-1 ring-white/5 backdrop-blur">
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-neutral-800/80 bg-neutral-900/70 p-4 shadow-2xl ring-1 ring-white/5 backdrop-blur">
         <section className="rounded-xl border border-neutral-800 bg-linear-to-br from-neutral-950 to-neutral-900 p-4">
           <div className="mb-2 flex items-center justify-between gap-3">
             <h1 className="text-lg font-semibold tracking-tight text-white">
@@ -73,24 +73,32 @@ function Sidebar({
             </h2>
             <span className="text-xs text-neutral-400">{connectedCount}</span>
           </div>
-          <ul className="space-y-2">
-            {users.map((user) => (
-              <li
-                key={user.id}
-                className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: user.color }}
-                  />
-                  <span className="text-sm text-neutral-200">{user.name}</span>
-                </div>
-                {user.isSelf ? (
-                  <span className="text-xs text-cyan-300">You</span>
-                ) : null}
+          <ul className="max-h-44 space-y-2 overflow-y-auto pr-1 md:max-h-56">
+            {users.length === 0 ? (
+              <li className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-400">
+                Waiting for collaborators...
               </li>
-            ))}
+            ) : (
+              users.map((user) => (
+                <li
+                  key={user.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: user.color }}
+                    />
+                    <span className="text-sm text-neutral-200">
+                      {user.name}
+                    </span>
+                  </div>
+                  {user.isSelf ? (
+                    <span className="text-xs text-cyan-300">You</span>
+                  ) : null}
+                </li>
+              ))
+            )}
           </ul>
         </section>
 
@@ -100,15 +108,22 @@ function Sidebar({
           </h2>
           <div
             ref={chatScrollRef}
-            className="mb-3 min-h-28 flex-1 space-y-2 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900 p-2.5"
+            aria-live="polite"
+            className="mb-3 min-h-28 max-h-72 flex-1 space-y-2 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900 p-2.5 md:max-h-[38vh]"
           >
             {messages.length === 0 ? (
-              <p className="text-xs text-neutral-500">No messages yet.</p>
+              <p className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/60 px-3 py-2 text-xs text-neutral-500">
+                No messages yet.
+              </p>
             ) : (
               messages.map((message, index) => (
                 <div
                   key={`${message.user}-${message.time}-${index}`}
-                  className="rounded-lg bg-neutral-800 px-2.5 py-1.5"
+                  className={`rounded-lg px-2.5 py-1.5 ${
+                    message.user === session.username
+                      ? "ml-5 border border-cyan-500/30 bg-cyan-500/10"
+                      : "mr-5 bg-neutral-800"
+                  }`}
                 >
                   <div className="flex items-center justify-between text-xs text-neutral-400">
                     <span>{message.user}</span>
@@ -129,7 +144,8 @@ function Sidebar({
             />
             <button
               type="submit"
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-400"
+              disabled={!chatInput.trim()}
+              className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
             >
               Send
             </button>

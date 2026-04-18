@@ -35,9 +35,22 @@ export function parseSessionFromUrl() {
 
 export function upsertSessionInUrl(username, room) {
   const params = new URLSearchParams(window.location.search);
-  params.set("username", username);
-  params.set("room", room);
-  const nextUrl = `${window.location.pathname}?${params.toString()}`;
+  if (username) {
+    params.set("username", username);
+  } else {
+    params.delete("username");
+  }
+
+  if (room) {
+    params.set("room", room);
+  } else {
+    params.delete("room");
+  }
+
+  const query = params.toString();
+  const nextUrl = query
+    ? `${window.location.pathname}?${query}`
+    : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
 }
 

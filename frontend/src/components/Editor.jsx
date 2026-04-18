@@ -60,8 +60,8 @@ function Editor({
 
   return (
     <section className="flex min-h-[60vh] flex-1 flex-col overflow-hidden rounded-2xl border border-neutral-800/80 bg-neutral-900/70 shadow-2xl ring-1 ring-white/5 backdrop-blur md:min-h-0">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900/90 px-4 py-3.5">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900/95 px-3 py-3 backdrop-blur sm:px-4 sm:py-3.5">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -72,11 +72,13 @@ function Editor({
             {isSidebarOpen ? "Hide Panel" : "Show Panel"}
           </button>
 
-          <div>
-            <h2 className="text-sm font-semibold text-neutral-100">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-neutral-100">
               Room {room}
             </h2>
-            <p className="text-xs text-neutral-400">Editing as {username}</p>
+            <p className="truncate text-xs text-neutral-400">
+              Editing as {username}
+            </p>
           </div>
         </div>
 
