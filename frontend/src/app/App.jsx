@@ -1,84 +1,329 @@
-import { useMemo, useState } from "react";
-import CodeEditor from "../components/CodeEditor/CodeEditor";
-import UserList from "../components/UserList/UserList";
-import "./App.css";
-
-const INITIAL_CODE = [
-  "// Welcome to MultiCode",
-  "function greet(name) {",
-  "  return `Hello, ${name}!`;",
-  "}",
-].join("\n");
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as Y from "yjs";
+import { SocketIOProvider } from "y-socket.io";
+import Editor from "../components/Editor";
+import Sidebar from "../components/Sidebar";
+import {
+  formatMessageTime,
+  getLanguageExtension,
+  getUserColor,
+  parseSessionFromUrl,
+  upsertSessionInUrl,
+} from "../utils/helpers";
 
 function App() {
-  // Placeholder local state for the UI scaffold.
-  const [connectedUsers] = useState([
-    { id: "u1", name: "Olivia", status: "online" },
-    { id: "u2", name: "Noah", status: "online" },
-    { id: "u3", name: "Ava", status: "idle" },
-    { id: "u4", name: "Liam", status: "online" },
-  ]);
-  const [activeUserId] = useState("u1");
+  const [session, setSession] = useState(() => parseSessionFromUrl());
+  const [formSession, setFormSession] = useState(() => ({
+    username: session.username,
+    room: session.room,
+  }));
+
   const [language, setLanguage] = useState("javascript");
-  const [code, setCode] = useState(INITIAL_CODE);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [connectionState] = useState("Connected");
+  const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [copyState, setCopyState] = useState("Copy Link");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const onlineCount = useMemo(
-    () => connectedUsers.filter((user) => user.status === "online").length,
-    [connectedUsers],
-  );
+  const [realtime, setRealtime] = useState(() => ({
+    doc: null,
+    provider: null,
+    yText: null,
+    metaMap: null,
+    chatArray: null,
+  }));
 
-  const connectionClassName =
-    connectionState === "Connected"
-      ? "status-pill status-pill--ok"
-      : "status-pill";
+  const chatScrollRef = useRef(null);
+
+  const sessionReady = Boolean(session.username && session.room);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+    setIsSidebarOpen(isDesktop);
+  }, []);
+
+  useEffect(() => {
+    setFormSession({ username: session.username, room: session.room });
+  }, [session.username, session.room]);
+
+  useEffect(() => {
+    if (!sessionReady) {
+      return undefined;
+    }
+
+    const doc = new Y.Doc();
+    const provider = new SocketIOProvider(
+      "ws://localhost:3001",
+      session.room,
+      doc,
+      {
+        autoConnect: true,
+      },
+    );
+
+    const yText = doc.getText("monaco");
+    const metaMap = doc.getMap("meta");
+    const chatArray = doc.getArray("chat");
+
+    if (!metaMap.get("language")) {
+      metaMap.set("language", "javascript");
+    }
+    if (!metaMap.get("theme")) {
+      metaMap.set("theme", "vs-dark");
+    }
+
+    provider.awareness.setLocalStateField("user", {
+      name: session.username,
+      color: getUserColor(session.username),
+    });
+
+    const syncLanguage = () => {
+      setLanguage(metaMap.get("language") || "javascript");
+    };
+
+    const syncMessages = () => {
+      setMessages(chatArray.toArray());
+    };
+
+    const syncUsers = () => {
+      const nextUsers = [];
+      provider.awareness.getStates().forEach((state, clientId) => {
+        const user = state?.user;
+        if (!user?.name) {
+          return;
+        }
+        nextUsers.push({
+          id: String(clientId),
+          name: user.name,
+          color: user.color || getUserColor(user.name),
+          isSelf: user.name === session.username,
+        });
+      });
+      nextUsers.sort((a, b) => a.name.localeCompare(b.name));
+      setUsers(nextUsers);
+    };
+
+    metaMap.observe(syncLanguage);
+    chatArray.observe(syncMessages);
+    provider.awareness.on("change", syncUsers);
+
+    syncLanguage();
+    syncMessages();
+    syncUsers();
+
+    setRealtime({ doc, provider, yText, metaMap, chatArray });
+
+    return () => {
+      metaMap.unobserve(syncLanguage);
+      chatArray.unobserve(syncMessages);
+      provider.awareness.off("change", syncUsers);
+      provider.awareness.setLocalState(null);
+      provider.destroy();
+      doc.destroy();
+      setRealtime({
+        doc: null,
+        provider: null,
+        yText: null,
+        metaMap: null,
+        chatArray: null,
+      });
+      setUsers([]);
+      setMessages([]);
+    };
+  }, [session.room, session.username, sessionReady]);
+
+  useEffect(() => {
+    if (!chatScrollRef.current) {
+      return;
+    }
+    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const isConnected = realtime.provider?.socket?.connected ?? false;
+
+  const joinSession = (event) => {
+    event.preventDefault();
+    const username = formSession.username.trim();
+    const room = formSession.room.trim();
+    if (!username || !room) {
+      return;
+    }
+
+    upsertSessionInUrl(username, room);
+    setSession({ username, room });
+  };
+
+  const copyRoomLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyState("Copied");
+      window.setTimeout(() => setCopyState("Copy Link"), 1200);
+    } catch {
+      setCopyState("Copy failed");
+      window.setTimeout(() => setCopyState("Copy Link"), 1200);
+    }
+  };
+
+  const handleLanguageChange = (nextLanguage) => {
+    setLanguage(nextLanguage);
+    if (realtime.metaMap) {
+      realtime.metaMap.set("language", nextLanguage);
+    }
+  };
+
+  const handleSendMessage = (event) => {
+    event.preventDefault();
+    const text = chatInput.trim();
+    if (!text || !realtime.chatArray) {
+      return;
+    }
+
+    realtime.chatArray.push([
+      {
+        text,
+        user: session.username,
+        time: Date.now(),
+      },
+    ]);
+    setChatInput("");
+  };
+
+  const handleExportCode = () => {
+    if (!realtime.yText) {
+      return;
+    }
+
+    const code = realtime.yText.toString();
+    const extension = getLanguageExtension(language);
+    const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `quickpair-${session.room}.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const connectedCount = useMemo(() => users.length, [users]);
 
   return (
-    <main className="app-shell">
-      <header className="status-bar" aria-label="Session status bar">
-        <div className={connectionClassName}>{connectionState}</div>
-        <p>{onlineCount} active collaborators</p>
+    <div className="relative min-h-screen overflow-hidden bg-neutral-950 text-neutral-100">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -bottom-20 right-0 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
+      </div>
+      {!sessionReady ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={joinSession}
+            className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-700/90 bg-neutral-900/95 p-7 shadow-2xl ring-1 ring-cyan-500/20"
+          >
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              Join QuickPair
+            </h1>
+            <p className="text-sm text-neutral-400">
+              Enter your username and room to start real-time collaboration.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="username" className="text-sm text-neutral-300">
+                Username
+              </label>
+              <input
+                id="username"
+                value={formSession.username}
+                onChange={(event) =>
+                  setFormSession((prev) => ({
+                    ...prev,
+                    username: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                placeholder="Tej"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="room" className="text-sm text-neutral-300">
+                Room
+              </label>
+              <input
+                id="room"
+                value={formSession.room}
+                onChange={(event) =>
+                  setFormSession((prev) => ({
+                    ...prev,
+                    room: event.target.value,
+                  }))
+                }
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                placeholder="abc"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 font-medium text-neutral-900 transition hover:bg-cyan-400"
+            >
+              Enter Room
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {sessionReady && isSidebarOpen ? (
         <button
           type="button"
-          className="sidebar-toggle"
-          onClick={() => setIsSidebarOpen((prev) => !prev)}
-          aria-expanded={isSidebarOpen}
-          aria-controls="connected-users-panel"
-        >
-          {isSidebarOpen ? "Hide Users" : "Show Users"}
-        </button>
-      </header>
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-20 bg-black/45 backdrop-blur-[1px] md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      ) : null}
 
-      {/* Sidebar is always visible on desktop and toggled as an overlay on mobile. */}
-      <aside
-        id="connected-users-panel"
-        className={`sidebar-panel ${isSidebarOpen ? "sidebar-panel--open" : ""}`}
-        aria-label="Connected users"
+      <div
+        className={`relative z-10 mx-auto flex min-h-screen w-full max-w-400 flex-col gap-3 p-3 sm:p-4 md:flex-row md:p-5 ${
+          isSidebarOpen ? "md:gap-4" : "md:gap-0"
+        }`}
       >
-        <UserList
-          users={connectedUsers}
-          activeUserId={activeUserId}
-          onlineCount={onlineCount}
-        />
-      </aside>
+        <div
+          className={`fixed inset-y-3 left-3 z-30 w-[min(24rem,calc(100vw-1.5rem))] transition-all duration-300 md:static md:inset-auto md:left-auto md:z-10 md:overflow-hidden ${
+            isSidebarOpen
+              ? "translate-x-0 opacity-100 md:w-96 md:pointer-events-auto"
+              : "-translate-x-[105%] opacity-0 pointer-events-none md:w-0 md:translate-x-0 md:opacity-0 md:pointer-events-none"
+          }`}
+        >
+          <Sidebar
+            session={session}
+            copyState={copyState}
+            onCopyLink={copyRoomLink}
+            users={users}
+            language={language}
+            onLanguageChange={handleLanguageChange}
+            messages={messages.map((message) => ({
+              ...message,
+              formattedTime: formatMessageTime(message.time),
+            }))}
+            chatInput={chatInput}
+            onChatInputChange={setChatInput}
+            onSendMessage={handleSendMessage}
+            chatScrollRef={chatScrollRef}
+            isConnected={isConnected}
+            connectedCount={connectedCount}
+          />
+        </div>
 
-      <button
-        type="button"
-        className={`sidebar-backdrop ${isSidebarOpen ? "sidebar-backdrop--visible" : ""}`}
-        aria-label="Close users panel"
-        onClick={() => setIsSidebarOpen(false)}
-      />
-
-      <section className="editor-panel" aria-label="Collaborative code editor">
-        <CodeEditor
+        <Editor
+          yText={realtime.yText}
+          provider={realtime.provider}
           language={language}
-          onLanguageChange={setLanguage}
-          value={code}
-          onChange={setCode}
+          room={session.room}
+          username={session.username}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+          onExport={handleExportCode}
         />
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
 

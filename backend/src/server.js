@@ -2,25 +2,27 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { YSocketIO } from "y-socket.io/dist/server";
-import ApiResponse from "./utils/ApiResponse.js";
-import healthcheckRouter from "./routes/healthcheck.routes.js";
+
+const PORT = 3001;
 
 const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, { 
-    cors: { 
-        origin: "*",
-        methods: ["GET", "POST"]
-        }
-    });
+app.use(express.json());
 
-const yio = new YSocketIO(io);
-yio.initialize();
+app.get("/health", (_req, res) => {
+  res.status(200).send("OK");
+});
 
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
 
-app.use("api/v1/healthcheck", healthcheckRouter);
+const ysocketio = new YSocketIO(io);
+ysocketio.initialize();
 
-
-httpServer.listen(3000, () => {
-    console.log("Server listening on port 3000");
+server.listen(PORT, () => {
+  console.log(`QuickPair backend listening on http://localhost:${PORT}`);
 });
