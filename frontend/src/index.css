@@ -8,6 +8,11 @@ body,
 
 body {
   margin: 0;
-  background-color: #000;
-  color: #fff;
+  background: radial-gradient(circle at top, #121827 0%, #080a0f 55%);
+  color: #f7f7f5;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
 }

@@ -1,0 +1,79 @@
+.user-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.user-list__header {
+  margin-bottom: 1rem;
+}
+
+.user-list__header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f7f7f5;
+}
+
+.user-list__header p {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: #a8b0be;
+}
+
+.user-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  overflow-y: auto;
+}
+
+.user-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border-radius: 0.7rem;
+  background: #121722;
+  border: 1px solid #232938;
+}
+
+.user-list__item--active {
+  border-color: #f2a02f;
+  background: #1a202d;
+}
+
+.user-list__status {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.user-list__status--online {
+  background: #16c47f;
+}
+
+.user-list__status--idle {
+  background: #f2a02f;
+}
+
+.user-list__meta {
+  min-width: 0;
+}
+
+.user-list__name {
+  margin: 0;
+  color: #f7f7f5;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.user-list__role {
+  margin: 0.2rem 0 0;
+  color: #94a1b5;
+  font-size: 0.8rem;
+}
