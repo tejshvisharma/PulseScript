@@ -1,0 +1,9 @@
+/* make the background color black */
+body {
+  background-color: black;
+}
+
+/* make the text color white */
+h1 {
+  color: white;
+}
