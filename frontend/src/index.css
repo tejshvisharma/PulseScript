@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 html,
@@ -8,9 +9,9 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #121827 0%, #080a0f 55%);
-  color: #f7f7f5;
-  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: #e4e1ec;
+  background: radial-gradient(circle at top, #1a1140 0%, #0d0d14 50%, #090b12 100%);
+  font-family: "Inter", "Space Grotesk", "Segoe UI", sans-serif;
 }
 
 * {

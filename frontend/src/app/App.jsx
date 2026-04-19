@@ -3,6 +3,8 @@ import * as Y from "yjs";
 import { SocketIOProvider } from "y-socket.io";
 import Editor from "../components/Editor";
 import Sidebar from "../components/Sidebar";
+import LandingPage from "../components/Landing/LandingPage";
+import JoinModal from "../components/Landing/JoinModal";
 import {
   formatMessageTime,
   getLanguageExtension,
@@ -11,6 +13,7 @@ import {
   parseSessionFromUrl,
   upsertSessionInUrl,
 } from "../utils/helpers";
+import "./App.css";
 
 function App() {
   const [session, setSession] = useState(() => parseSessionFromUrl());
@@ -27,6 +30,9 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [joinError, setJoinError] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(
+    Boolean(session.room || session.username),
+  );
 
   const [realtime, setRealtime] = useState(() => ({
     doc: null,
@@ -41,6 +47,12 @@ function App() {
   const clientId = clientIdRef.current;
 
   const sessionReady = Boolean(session.username && session.room);
+
+  useEffect(() => {
+    if (sessionReady) {
+      setIsJoinModalOpen(false);
+    }
+  }, [sessionReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -121,11 +133,10 @@ function App() {
         return;
       }
 
-      setJoinError(
-        "Username already exists in this room. Choose a different name.",
-      );
+      setJoinError("Username already exists in this room. Choose a different name.");
       setSession({ username: "", room: session.room });
       upsertSessionInUrl("", session.room);
+      setIsJoinModalOpen(true);
     };
 
     const syncLanguage = () => {
@@ -138,13 +149,13 @@ function App() {
 
     const syncUsers = () => {
       const nextUsers = [];
-      provider.awareness.getStates().forEach((state, clientId) => {
+      provider.awareness.getStates().forEach((state, awarenessClientId) => {
         const user = state?.user;
         if (!user?.name) {
           return;
         }
         nextUsers.push({
-          id: String(clientId),
+          id: String(awarenessClientId),
           name: user.name,
           color: user.color || getUserColor(user.name),
           isSelf: user.name === session.username,
@@ -264,19 +275,16 @@ function App() {
 
     if (!availability.available) {
       if (availability.reason === "taken") {
-        setJoinError(
-          "Username already exists in this room. Choose a different name.",
-        );
+        setJoinError("Username already exists in this room. Choose a different name.");
       } else {
-        setJoinError(
-          "Could not verify room users right now. Please try again.",
-        );
+        setJoinError("Could not verify room users right now. Please try again.");
       }
       return;
     }
 
     upsertSessionInUrl(username, room);
     setSession({ username, room });
+    setIsJoinModalOpen(false);
   };
 
   const copyRoomLink = async () => {
@@ -333,136 +341,117 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const scrollToSection = (sectionId) => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const sectionNode = document.getElementById(sectionId);
+    if (sectionNode) {
+      sectionNode.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const openJoinModal = (roomName) => {
+    setJoinError("");
+
+    if (roomName) {
+      setFormSession((prev) => ({
+        ...prev,
+        room: roomName,
+      }));
+    }
+
+    setIsJoinModalOpen(true);
+  };
+
+  const startRoom = () => {
+    const randomRoom = `room-${Math.random().toString(36).slice(2, 8)}`;
+    const roomName = formSession.room.trim() || randomRoom;
+    openJoinModal(roomName);
+  };
+
   const connectedCount = useMemo(() => users.length, [users]);
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-neutral-950 text-neutral-100">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
-        <div className="absolute -bottom-20 right-0 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
-      </div>
-      {!sessionReady ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={joinSession}
-            className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-700/90 bg-neutral-900/95 p-7 shadow-2xl ring-1 ring-cyan-500/20"
-          >
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Join QuickPair
-            </h1>
-            <p className="text-sm text-neutral-400">
-              Enter your username and room to start real-time collaboration.
-            </p>
-            <p className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
-              Username must be unique inside the room.
-            </p>
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm text-neutral-300">
-                Username
-              </label>
-              <input
-                id="username"
-                value={formSession.username}
-                onChange={(event) =>
-                  setFormSession((prev) => ({
-                    ...prev,
-                    username: event.target.value,
-                  }))
-                }
-                onInput={() => setJoinError("")}
-                disabled={isCheckingUsername}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                placeholder="Tej"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="room" className="text-sm text-neutral-300">
-                Room
-              </label>
-              <input
-                id="room"
-                value={formSession.room}
-                onChange={(event) =>
-                  setFormSession((prev) => ({
-                    ...prev,
-                    room: event.target.value,
-                  }))
-                }
-                onInput={() => setJoinError("")}
-                disabled={isCheckingUsername}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2.5 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                placeholder="abc"
-              />
-            </div>
-            {joinError ? (
-              <p className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                {joinError}
-              </p>
-            ) : null}
-            <button
-              type="submit"
-              disabled={isCheckingUsername}
-              className="w-full rounded-lg bg-cyan-500 px-4 py-2.5 font-medium text-neutral-900 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
-            >
-              {isCheckingUsername ? "Checking username..." : "Enter Room"}
-            </button>
-          </form>
+  if (sessionReady) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-neutral-950 text-neutral-100">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+          <div className="absolute -bottom-20 right-0 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
         </div>
-      ) : null}
 
-      {sessionReady && isSidebarOpen ? (
-        <button
-          type="button"
-          aria-label="Close sidebar"
-          className="fixed inset-0 z-20 bg-black/45 backdrop-blur-[1px] md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      ) : null}
+        {isSidebarOpen ? (
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            className="fixed inset-0 z-20 bg-black/45 backdrop-blur-[1px] md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        ) : null}
 
-      <div
-        className={`relative z-10 mx-auto flex min-h-screen w-full max-w-400 flex-col gap-3 p-3 sm:p-4 md:flex-row md:p-5 ${
-          isSidebarOpen ? "md:gap-4" : "md:gap-0"
-        }`}
-      >
-        <div
-          className={`fixed inset-y-3 left-3 z-30 w-[min(24rem,calc(100vw-1.5rem))] transition-all duration-300 md:static md:inset-auto md:left-auto md:z-10 md:overflow-hidden ${
-            isSidebarOpen
-              ? "translate-x-0 opacity-100 md:w-96 md:pointer-events-auto"
-              : "-translate-x-[105%] opacity-0 pointer-events-none md:w-0 md:translate-x-0 md:opacity-0 md:pointer-events-none"
-          }`}
-        >
-          <Sidebar
-            session={session}
-            copyState={copyState}
-            onCopyLink={copyRoomLink}
-            users={users}
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-400 flex-col gap-3 p-3 sm:p-4 md:flex-row md:p-5 md:gap-4">
+          <div
+            className={`fixed inset-y-3 left-3 z-30 w-[min(24rem,calc(100vw-1.5rem))] transition-all duration-300 md:static md:inset-auto md:left-auto md:z-10 md:w-96 md:overflow-hidden ${
+              isSidebarOpen
+                ? "translate-x-0 opacity-100 md:pointer-events-auto"
+                : "-translate-x-[105%] opacity-0 pointer-events-none md:translate-x-0 md:opacity-100"
+            }`}
+          >
+            <Sidebar
+              session={session}
+              copyState={copyState}
+              onCopyLink={copyRoomLink}
+              users={users}
+              language={language}
+              onLanguageChange={handleLanguageChange}
+              messages={messages.map((message) => ({
+                ...message,
+                formattedTime: formatMessageTime(message.time),
+              }))}
+              chatInput={chatInput}
+              onChatInputChange={setChatInput}
+              onSendMessage={handleSendMessage}
+              chatScrollRef={chatScrollRef}
+              isConnected={isConnected}
+              connectedCount={connectedCount}
+            />
+          </div>
+
+          <Editor
+            yText={realtime.yText}
+            provider={realtime.provider}
             language={language}
-            onLanguageChange={handleLanguageChange}
-            messages={messages.map((message) => ({
-              ...message,
-              formattedTime: formatMessageTime(message.time),
-            }))}
-            chatInput={chatInput}
-            onChatInputChange={setChatInput}
-            onSendMessage={handleSendMessage}
-            chatScrollRef={chatScrollRef}
-            isConnected={isConnected}
-            connectedCount={connectedCount}
+            room={session.room}
+            username={session.username}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+            onExport={handleExportCode}
           />
         </div>
-
-        <Editor
-          yText={realtime.yText}
-          provider={realtime.provider}
-          language={language}
-          room={session.room}
-          username={session.username}
-          isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-          onExport={handleExportCode}
-        />
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <>
+      <LandingPage
+        onScrollToSection={scrollToSection}
+        onStartRoom={startRoom}
+        onOpenJoinModal={openJoinModal}
+        year={new Date().getFullYear()}
+      />
+      <JoinModal
+        isOpen={isJoinModalOpen}
+        formSession={formSession}
+        setFormSession={setFormSession}
+        joinError={joinError}
+        clearJoinError={() => setJoinError("")}
+        isCheckingUsername={isCheckingUsername}
+        onClose={() => setIsJoinModalOpen(false)}
+        onSubmit={joinSession}
+      />
+    </>
   );
 }
 
