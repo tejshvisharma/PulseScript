@@ -87,7 +87,12 @@ const USE_CASE_TAGS = [
   "Code Reviews",
 ];
 
-function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) {
+function LandingPage({
+  onScrollToSection,
+  onStartRoom,
+  onOpenJoinModal,
+  year,
+}) {
   return (
     <div className="min-h-screen bg-[#0d0d14] text-[#e4e1ec]">
       <nav className="fixed top-0 z-50 w-full border-b border-white/10 bg-[#0d0d14]/70 backdrop-blur-xl">
@@ -231,19 +236,25 @@ function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) 
       <section className="lp-reveal lp-delay-1 border-y border-white/10 bg-[#1b1b22]/55 py-10">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-8 px-6 md:grid-cols-4">
           <div className="text-center">
-            <div className="font-mono text-2xl font-black text-cyan-300">340+</div>
+            <div className="font-mono text-2xl font-black text-cyan-300">
+              340+
+            </div>
             <div className="mt-1 text-xs uppercase tracking-widest text-[#ccc3d8]">
               Rooms Active
             </div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-2xl font-black text-violet-300">5s</div>
+            <div className="font-mono text-2xl font-black text-violet-300">
+              5s
+            </div>
             <div className="mt-1 text-xs uppercase tracking-widest text-[#ccc3d8]">
               Avg Join Time
             </div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-2xl font-black text-emerald-300">60+</div>
+            <div className="font-mono text-2xl font-black text-emerald-300">
+              60+
+            </div>
             <div className="mt-1 text-xs uppercase tracking-widest text-[#ccc3d8]">
               Countries
             </div>
@@ -294,7 +305,9 @@ function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) 
               className="lp-reveal rounded-xl bg-[#1b1b22] p-7 transition duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#2a2931]"
               style={{ animationDelay: `${140 + index * 70}ms` }}
             >
-              <h4 className="mb-2 text-lg font-bold text-white">{card.title}</h4>
+              <h4 className="mb-2 text-lg font-bold text-white">
+                {card.title}
+              </h4>
               <p className="text-sm text-[#ccc3d8]">{card.body}</p>
             </article>
           ))}
@@ -324,7 +337,9 @@ function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) 
             style={{ animationDelay: "180ms" }}
           >
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Presence List</h3>
+              <h3 className="text-sm font-semibold text-white">
+                Presence List
+              </h3>
               <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold uppercase text-emerald-300">
                 Connected
               </span>
@@ -335,7 +350,9 @@ function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) 
                   key={person.n}
                   className={`flex items-center justify-between rounded-xl bg-[#2a2931] px-4 py-3 border-l-4 ${person.c}`}
                 >
-                  <span className="text-sm font-medium text-white">{person.n}</span>
+                  <span className="text-sm font-medium text-white">
+                    {person.n}
+                  </span>
                   <span className="text-xs text-[#ccc3d8]">{person.s}</span>
                 </div>
               ))}
@@ -380,7 +397,9 @@ function LandingPage({ onScrollToSection, onStartRoom, onOpenJoinModal, year }) 
               />
               <div className="absolute inset-0 bg-linear-to-t from-[#0d0d14] via-transparent to-transparent" />
               <div className="absolute bottom-5 left-5">
-                <p className={`text-[10px] uppercase tracking-[0.25em] ${item.accent}`}>
+                <p
+                  className={`text-[10px] uppercase tracking-[0.25em] ${item.accent}`}
+                >
                   {item.tag}
                 </p>
                 <h3 className="text-xl font-bold text-white">{item.title}</h3>

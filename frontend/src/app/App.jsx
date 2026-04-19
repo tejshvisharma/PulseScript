@@ -133,7 +133,9 @@ function App() {
         return;
       }
 
-      setJoinError("Username already exists in this room. Choose a different name.");
+      setJoinError(
+        "Username already exists in this room. Choose a different name.",
+      );
       setSession({ username: "", room: session.room });
       upsertSessionInUrl("", session.room);
       setIsJoinModalOpen(true);
@@ -275,9 +277,13 @@ function App() {
 
     if (!availability.available) {
       if (availability.reason === "taken") {
-        setJoinError("Username already exists in this room. Choose a different name.");
+        setJoinError(
+          "Username already exists in this room. Choose a different name.",
+        );
       } else {
-        setJoinError("Could not verify room users right now. Please try again.");
+        setJoinError(
+          "Could not verify room users right now. Please try again.",
+        );
       }
       return;
     }
