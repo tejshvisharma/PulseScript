@@ -6,6 +6,7 @@ import Sidebar from "../components/Sidebar";
 import {
   formatMessageTime,
   getLanguageExtension,
+  getOrCreateTabClientId,
   getUserColor,
   parseSessionFromUrl,
   upsertSessionInUrl,
@@ -36,6 +37,8 @@ function App() {
   }));
 
   const chatScrollRef = useRef(null);
+  const clientIdRef = useRef(getOrCreateTabClientId());
+  const clientId = clientIdRef.current;
 
   const sessionReady = Boolean(session.username && session.room);
 
@@ -91,6 +94,7 @@ function App() {
         autoConnect: true,
         auth: {
           username: session.username,
+          clientId,
         },
       },
     );
@@ -179,7 +183,7 @@ function App() {
       setUsers([]);
       setMessages([]);
     };
-  }, [session.room, session.username, sessionReady]);
+  }, [clientId, session.room, session.username, sessionReady]);
 
   useEffect(() => {
     if (!chatScrollRef.current) {
@@ -201,6 +205,7 @@ function App() {
           autoConnect: true,
           auth: {
             username,
+            clientId,
           },
         },
       );

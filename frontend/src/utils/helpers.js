@@ -25,6 +25,15 @@ const USER_COLORS = [
   "#34d399",
 ];
 
+const CLIENT_ID_STORAGE_KEY = "quickpair_client_id";
+
+const createClientId = () => {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `qp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export function parseSessionFromUrl() {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -52,6 +61,25 @@ export function upsertSessionInUrl(username, room) {
     ? `${window.location.pathname}?${query}`
     : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
+}
+
+export function getOrCreateTabClientId() {
+  if (typeof window === "undefined") {
+    return "server";
+  }
+
+  try {
+    const existing = window.sessionStorage.getItem(CLIENT_ID_STORAGE_KEY);
+    if (existing) {
+      return existing;
+    }
+
+    const nextId = createClientId();
+    window.sessionStorage.setItem(CLIENT_ID_STORAGE_KEY, nextId);
+    return nextId;
+  } catch {
+    return createClientId();
+  }
 }
 
 export function getLanguageExtension(language) {

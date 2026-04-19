@@ -20,6 +20,7 @@ const io = new Server(server, {
   },
 });
 
+// roomUsers: room -> username -> active socket/client identity
 const roomUsers = new Map();
 
 const getRoomNameFromNamespace = (namespaceName) => {
@@ -37,6 +38,7 @@ yjsNamespace.use((socket, next) => {
   const room = getRoomNameFromNamespace(socket.nsp.name);
   const username = (socket.handshake.auth?.username || "").trim();
   const normalizedUsername = username.toLowerCase();
+  const clientId = (socket.handshake.auth?.clientId || "").trim();
 
   if (!username) {
     next(new Error("Username is required"));
@@ -44,39 +46,59 @@ yjsNamespace.use((socket, next) => {
   }
 
   const usersInRoom = roomUsers.get(room);
-  if (usersInRoom?.has(normalizedUsername)) {
+  const existingUser = usersInRoom?.get(normalizedUsername);
+  if (existingUser && (!clientId || existingUser.clientId !== clientId)) {
     next(new Error("Username already taken in this room"));
     return;
   }
 
   socket.data.room = room;
   socket.data.normalizedUsername = normalizedUsername;
+  socket.data.clientId = clientId;
   next();
 });
 
 yjsNamespace.on("connection", (socket) => {
   const room = socket.data.room;
   const normalizedUsername = socket.data.normalizedUsername;
+  const clientId = socket.data.clientId || "";
 
   if (!room || !normalizedUsername) {
     socket.disconnect(true);
     return;
   }
 
-  const usersInRoom = roomUsers.get(room) || new Set();
+  const usersInRoom = roomUsers.get(room) || new Map();
+  const existingUser = usersInRoom.get(normalizedUsername);
 
   // Double-check at connection-time to prevent race conditions.
-  if (usersInRoom.has(normalizedUsername)) {
+  if (existingUser && existingUser.clientId !== clientId) {
     socket.disconnect(true);
     return;
   }
 
-  usersInRoom.add(normalizedUsername);
+  // Same tab refreshed: disconnect the stale previous socket and replace it.
+  if (existingUser?.socketId && existingUser.socketId !== socket.id) {
+    const previousSocket = yjsNamespace.sockets.get(existingUser.socketId);
+    if (previousSocket?.connected) {
+      previousSocket.disconnect(true);
+    }
+  }
+
+  usersInRoom.set(normalizedUsername, {
+    socketId: socket.id,
+    clientId,
+  });
   roomUsers.set(room, usersInRoom);
 
   socket.on("disconnect", () => {
     const activeUsers = roomUsers.get(room);
     if (!activeUsers) {
+      return;
+    }
+
+    const currentUser = activeUsers.get(normalizedUsername);
+    if (!currentUser || currentUser.socketId !== socket.id) {
       return;
     }
 
