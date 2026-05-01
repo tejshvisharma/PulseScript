@@ -1,0 +1,17 @@
+.ps-editor-shell {
+  container-type: inline-size;
+  contain: layout paint style;
+}
+
+.ps-editor-shell .monaco-editor,
+.ps-editor-shell .monaco-editor-background,
+.ps-editor-shell .overflow-guard,
+.ps-editor-shell .margin {
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.ps-editor-shell .monaco-editor .view-lines {
+  font-size: 14px;
+}

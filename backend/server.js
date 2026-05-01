@@ -7,7 +7,10 @@ const PORT = 3001;
 
 const app = express();
 app.use(express.json());
-
+app.use(express.static("./public"));
+app.get("/", (_req, res) => {
+  res.sendFile("./public/index.html");
+});
 app.get("/health", (_req, res) => {
   res.status(200).send("OK");
 });

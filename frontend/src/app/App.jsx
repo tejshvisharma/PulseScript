@@ -5,9 +5,9 @@ import Editor from "../components/Editor";
 import Sidebar from "../components/Sidebar";
 import LandingPage from "../components/Landing/LandingPage";
 import JoinModal from "../components/Landing/JoinModal";
+import { getLanguageExtension, getLanguageLabel } from "../utils/languages";
 import {
   formatMessageTime,
-  getLanguageExtension,
   getOrCreateTabClientId,
   getUserColor,
   parseSessionFromUrl,
@@ -25,6 +25,7 @@ function App() {
   const [language, setLanguage] = useState("javascript");
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [copyState, setCopyState] = useState("Copy Link");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -47,6 +48,7 @@ function App() {
   const clientId = clientIdRef.current;
 
   const sessionReady = Boolean(session.username && session.room);
+  const languageLabel = useMemo(() => getLanguageLabel(language), [language]);
 
   useEffect(() => {
     if (sessionReady) {
@@ -55,36 +57,31 @@ function App() {
   }, [sessionReady]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof document === "undefined" || !sessionReady) {
       return;
     }
-    const media = window.matchMedia("(min-width: 768px)");
-    const syncSidebarByViewport = () => {
-      setIsSidebarOpen(media.matches);
-    };
 
-    syncSidebarByViewport();
-    media.addEventListener("change", syncSidebarByViewport);
+    document.body.classList.toggle("ps-sidebar-open", isSidebarOpen);
 
     return () => {
-      media.removeEventListener("change", syncSidebarByViewport);
+      document.body.classList.remove("ps-sidebar-open");
     };
-  }, []);
+  }, [isSidebarOpen, sessionReady]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!sessionReady || !isSidebarOpen || typeof window === "undefined") {
       return;
     }
 
-    const isMobile = !window.matchMedia("(min-width: 768px)").matches;
-    const previousOverflow = document.body.style.overflow;
+    const handleEscClose = (event) => {
+      if (event.key === "Escape") {
+        setIsSidebarOpen(false);
+      }
+    };
 
-    if (isMobile && isSidebarOpen && sessionReady) {
-      document.body.style.overflow = "hidden";
-    }
-
+    window.addEventListener("keydown", handleEscClose);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscClose);
     };
   }, [isSidebarOpen, sessionReady]);
 
@@ -126,6 +123,7 @@ function App() {
       name: session.username,
       color: getUserColor(session.username),
     });
+    provider.awareness.setLocalStateField("typing", false);
 
     const handleProviderConnectError = (error) => {
       const message = String(error?.message || "").toLowerCase();
@@ -151,20 +149,31 @@ function App() {
 
     const syncUsers = () => {
       const nextUsers = [];
+      const nextTypingUsers = [];
+
       provider.awareness.getStates().forEach((state, awarenessClientId) => {
         const user = state?.user;
         if (!user?.name) {
           return;
         }
+
         nextUsers.push({
           id: String(awarenessClientId),
           name: user.name,
           color: user.color || getUserColor(user.name),
           isSelf: user.name === session.username,
         });
+
+        if (state?.typing && user.name !== session.username) {
+          nextTypingUsers.push(user.name);
+        }
       });
+
       nextUsers.sort((a, b) => a.name.localeCompare(b.name));
+      nextTypingUsers.sort((a, b) => a.localeCompare(b));
+
       setUsers(nextUsers);
+      setTypingUsers([...new Set(nextTypingUsers)]);
     };
 
     metaMap.observe(syncLanguage);
@@ -194,9 +203,33 @@ function App() {
         chatArray: null,
       });
       setUsers([]);
+      setTypingUsers([]);
       setMessages([]);
     };
   }, [clientId, session.room, session.username, sessionReady]);
+
+  useEffect(() => {
+    const awareness = realtime.provider?.awareness;
+    if (!awareness || !sessionReady) {
+      return;
+    }
+
+    const hasText = Boolean(chatInput.trim());
+    if (!hasText) {
+      awareness.setLocalStateField("typing", false);
+      return;
+    }
+
+    awareness.setLocalStateField("typing", true);
+
+    const timeoutId = window.setTimeout(() => {
+      awareness.setLocalStateField("typing", false);
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [chatInput, realtime.provider, sessionReady]);
 
   useEffect(() => {
     if (!chatScrollRef.current) {
@@ -329,6 +362,9 @@ function App() {
       },
     ]);
     setChatInput("");
+    if (realtime.provider?.awareness) {
+      realtime.provider.awareness.setLocalStateField("typing", false);
+    }
   };
 
   const handleExportCode = () => {
@@ -342,7 +378,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `quickpair-${session.room}.${extension}`;
+    link.download = `pulsescript-${session.room}.${extension}`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -378,62 +414,108 @@ function App() {
   };
 
   const connectedCount = useMemo(() => users.length, [users]);
+  const showUsersSkeleton = !isConnected && users.length === 0;
+  const showMessagesSkeleton = !isConnected && messages.length === 0;
 
   if (sessionReady) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-neutral-950 text-neutral-100">
+      <div className="relative min-h-dvh overflow-hidden bg-slate-950 text-slate-100">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
-          <div className="absolute -bottom-20 right-0 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
+          <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-indigo-500/14 blur-3xl" />
+          <div className="absolute -bottom-20 right-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
         </div>
 
         {isSidebarOpen ? (
           <button
             type="button"
             aria-label="Close sidebar"
-            className="fixed inset-0 z-20 bg-black/45 backdrop-blur-[1px] md:hidden"
+            className="fixed inset-0 z-30 bg-slate-950/65 backdrop-blur-md lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         ) : null}
 
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-400 flex-col gap-3 p-3 sm:p-4 md:flex-row md:p-5 md:gap-4">
+        <div className="relative z-10 min-h-dvh w-full">
+          <header className="fixed inset-x-0 top-0 z-40 border-b border-slate-700/70 bg-slate-900/95 px-3 py-2.5 backdrop-blur-md lg:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:border-indigo-400/70 hover:text-indigo-200"
+                aria-label={isSidebarOpen ? "Hide panel" : "Show panel"}
+                aria-expanded={isSidebarOpen}
+              >
+                {isSidebarOpen ? "Hide Panel" : "Show Panel"}
+              </button>
+
+              <div className="min-w-0 flex-1 text-center">
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  Room {session.room}
+                </p>
+                <p className="truncate text-xs text-slate-400">
+                  {session.username}
+                </p>
+              </div>
+
+              <span className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-200">
+                {languageLabel}
+              </span>
+            </div>
+          </header>
+
           <div
-            className={`fixed inset-y-3 left-3 z-30 w-[min(24rem,calc(100vw-1.5rem))] transition-all duration-300 md:static md:inset-auto md:left-auto md:z-10 md:w-96 md:overflow-hidden ${
-              isSidebarOpen
-                ? "translate-x-0 opacity-100 md:pointer-events-auto"
-                : "-translate-x-[105%] opacity-0 pointer-events-none md:translate-x-0 md:opacity-100"
+            className={`mx-auto flex min-h-dvh w-full ${
+              isSidebarOpen ? "max-w-450 lg:items-stretch" : "max-w-none"
             }`}
           >
-            <Sidebar
-              session={session}
-              copyState={copyState}
-              onCopyLink={copyRoomLink}
-              users={users}
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              messages={messages.map((message) => ({
-                ...message,
-                formattedTime: formatMessageTime(message.time),
-              }))}
-              chatInput={chatInput}
-              onChatInputChange={setChatInput}
-              onSendMessage={handleSendMessage}
-              chatScrollRef={chatScrollRef}
-              isConnected={isConnected}
-              connectedCount={connectedCount}
-            />
-          </div>
+            {isSidebarOpen ? (
+              <div className="fixed inset-y-0 left-0 z-40 w-full translate-x-0 opacity-100 ps-sidebar-slide-in transition-all duration-300 ease-out sm:w-[24rem] md:w-72 lg:static lg:z-20 lg:w-80 lg:shrink-0 lg:animate-none">
+                <div className="h-full p-3 sm:p-4 lg:p-4">
+                  <Sidebar
+                    session={session}
+                    copyState={copyState}
+                    onCopyLink={copyRoomLink}
+                    users={users}
+                    language={language}
+                    onLanguageChange={handleLanguageChange}
+                    messages={messages.map((message) => ({
+                      ...message,
+                      formattedTime: formatMessageTime(message.time),
+                    }))}
+                    chatInput={chatInput}
+                    onChatInputChange={setChatInput}
+                    onSendMessage={handleSendMessage}
+                    chatScrollRef={chatScrollRef}
+                    isConnected={isConnected}
+                    connectedCount={connectedCount}
+                    typingUsers={typingUsers}
+                    onExport={handleExportCode}
+                    isUsersLoading={showUsersSkeleton}
+                    isMessagesLoading={showMessagesSkeleton}
+                  />
+                </div>
+              </div>
+            ) : null}
 
-          <Editor
-            yText={realtime.yText}
-            provider={realtime.provider}
-            language={language}
-            room={session.room}
-            username={session.username}
-            isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-            onExport={handleExportCode}
-          />
+            <div
+              className={`flex min-w-0 flex-1 flex-col ${
+                isSidebarOpen
+                  ? "p-3 pt-18 sm:p-4 sm:pt-20 lg:p-4 lg:pt-4"
+                  : "p-0 pt-13 sm:pt-14 lg:pt-0"
+              }`}
+            >
+              <Editor
+                yText={realtime.yText}
+                provider={realtime.provider}
+                language={language}
+                room={session.room}
+                username={session.username}
+                isSidebarOpen={isSidebarOpen}
+                isFocusMode={!isSidebarOpen}
+                onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+                onExport={handleExportCode}
+              />
+            </div>
+          </div>
         </div>
       </div>
     );

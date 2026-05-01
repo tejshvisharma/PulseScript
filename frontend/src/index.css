@@ -5,15 +5,74 @@ html,
 body,
 #root {
   min-height: 100%;
+  width: 100%;
 }
 
 body {
   margin: 0;
-  color: #e4e1ec;
-  background: radial-gradient(circle at top, #1a1140 0%, #0d0d14 50%, #090b12 100%);
+  overflow-x: hidden;
+  color: #e2e8f0;
+  background:
+    radial-gradient(1300px 700px at 6% 0%, rgba(99, 102, 241, 0.2), transparent 55%),
+    radial-gradient(1000px 550px at 100% 100%, rgba(16, 185, 129, 0.15), transparent 58%),
+    #020617;
   font-family: "Inter", "Space Grotesk", "Segoe UI", sans-serif;
+  touch-action: manipulation;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
+}
+
+*::selection {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+body.ps-sidebar-open {
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  body.ps-sidebar-open {
+    overflow: auto;
+  }
+}
+
+@keyframes psSlideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.ps-sidebar-slide-in {
+  animation: psSlideInLeft 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  background-color: rgba(100, 116, 139, 0.55);
 }

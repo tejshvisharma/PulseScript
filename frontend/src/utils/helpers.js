@@ -1,18 +1,4 @@
-export const LANGUAGE_OPTIONS = [
-  { value: "javascript", label: "JavaScript" },
-  { value: "python", label: "Python" },
-  { value: "c", label: "C" },
-  { value: "cpp", label: "C++" },
-  { value: "java", label: "Java" },
-];
-
-const LANGUAGE_TO_EXTENSION = {
-  javascript: "js",
-  python: "py",
-  c: "c",
-  cpp: "cpp",
-  java: "java",
-};
+export { LANGUAGE_OPTIONS, getLanguageExtension } from "./languages";
 
 const USER_COLORS = [
   "#22d3ee",
@@ -80,10 +66,6 @@ export function getOrCreateTabClientId() {
   } catch {
     return createClientId();
   }
-}
-
-export function getLanguageExtension(language) {
-  return LANGUAGE_TO_EXTENSION[language] || "txt";
 }
 
 export function getUserColor(name) {
