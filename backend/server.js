@@ -3,7 +3,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { YSocketIO } from "y-socket.io/dist/server";
 
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 const app = express();
 app.use(express.json());

@@ -50,6 +50,20 @@ function App() {
   const sessionReady = Boolean(session.username && session.room);
   const languageLabel = useMemo(() => getLanguageLabel(language), [language]);
 
+  const socketUrl = useMemo(() => {
+    const envUrl = import.meta.env.VITE_SOCKET_URL;
+    if (envUrl) {
+      return envUrl;
+    }
+
+    if (typeof window === "undefined") {
+      return "ws://localhost:3001";
+    }
+
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${window.location.host}`;
+  }, []);
+
   useEffect(() => {
     if (sessionReady) {
       setIsJoinModalOpen(false);
@@ -95,18 +109,13 @@ function App() {
     }
 
     const doc = new Y.Doc();
-    const provider = new SocketIOProvider(
-      "ws://localhost:3001",
-      session.room,
-      doc,
-      {
-        autoConnect: true,
-        auth: {
-          username: session.username,
-          clientId,
-        },
+    const provider = new SocketIOProvider(socketUrl, session.room, doc, {
+      autoConnect: true,
+      auth: {
+        username: session.username,
+        clientId,
       },
-    );
+    });
 
     const yText = doc.getText("monaco");
     const metaMap = doc.getMap("meta");
@@ -206,7 +215,7 @@ function App() {
       setTypingUsers([]);
       setMessages([]);
     };
-  }, [clientId, session.room, session.username, sessionReady]);
+  }, [clientId, session.room, session.username, sessionReady, socketUrl]);
 
   useEffect(() => {
     const awareness = realtime.provider?.awareness;
@@ -243,18 +252,13 @@ function App() {
   const checkUsernameAvailability = (room, username) =>
     new Promise((resolve) => {
       const probeDoc = new Y.Doc();
-      const probeProvider = new SocketIOProvider(
-        "ws://localhost:3001",
-        room,
-        probeDoc,
-        {
-          autoConnect: true,
-          auth: {
-            username,
-            clientId,
-          },
+      const probeProvider = new SocketIOProvider(socketUrl, room, probeDoc, {
+        autoConnect: true,
+        auth: {
+          username,
+          clientId,
         },
-      );
+      });
       let settled = false;
 
       const cleanup = (result) => {
