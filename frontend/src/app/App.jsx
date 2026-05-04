@@ -52,22 +52,15 @@ function App() {
 
   const socketUrl = useMemo(() => {
     const envUrl = import.meta.env.VITE_SOCKET_URL;
-    if (envUrl) {
-      return envUrl;
-    }
+    if (envUrl) return envUrl;
 
-    if (typeof window === "undefined") {
-      return "ws://localhost:3001";
-    }
+    if (typeof window === "undefined") return "http://localhost:3001";
 
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const protocol = window.location.protocol === "https:" ? "https:" : "http:";
     const { hostname, port } = window.location;
 
-    if (!port || port === "3001") {
-      return `${wsProtocol}//${window.location.host}`;
-    }
-
-    return `${wsProtocol}//${hostname}:3001`;
+    if (!port || port === "3001") return `${protocol}//${window.location.host}`;
+    return `${protocol}//${hostname}:3001`;
   }, []);
 
   useEffect(() => {
@@ -121,6 +114,7 @@ function App() {
         username: session.username,
         clientId,
       },
+      transports: ["websocket"],
     });
 
     const yText = doc.getText("monaco");
@@ -255,53 +249,18 @@ function App() {
 
   const isConnected = realtime.provider?.socket?.connected ?? false;
 
-  const checkUsernameAvailability = (room, username) =>
-    new Promise((resolve) => {
-      const probeDoc = new Y.Doc();
-      const probeProvider = new SocketIOProvider(socketUrl, room, probeDoc, {
-        autoConnect: true,
-        auth: {
-          username,
-          clientId,
-        },
+  const checkUsernameAvailability = async (room, username) => {
+    try {
+      const params = new URLSearchParams({ room, username });
+      const res = await fetch(`/api/username-available?${params}`, {
+        signal: AbortSignal.timeout(4000),
       });
-      let settled = false;
-
-      const cleanup = (result) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        window.clearTimeout(timeoutId);
-        probeProvider.socket.off("connect", onConnect);
-        probeProvider.socket.off("connect_error", onConnectError);
-        probeProvider.destroy();
-        probeDoc.destroy();
-        resolve(result);
-      };
-
-      const onConnect = () => {
-        cleanup({ available: true, reason: "ok" });
-      };
-
-      const onConnectError = (error) => {
-        const message = String(error?.message || "").toLowerCase();
-        cleanup({
-          available: false,
-          reason:
-            message.includes("username") && message.includes("taken")
-              ? "taken"
-              : "connection",
-        });
-      };
-
-      const timeoutId = window.setTimeout(() => {
-        cleanup({ available: false, reason: "timeout" });
-      }, 2000);
-
-      probeProvider.socket.on("connect", onConnect);
-      probeProvider.socket.on("connect_error", onConnectError);
-    });
+      if (!res.ok) return { available: false, reason: "connection" };
+      return res.json();
+    } catch {
+      return { available: false, reason: "connection" };
+    }
+  };
 
   const joinSession = async (event) => {
     event.preventDefault();
