@@ -4,6 +4,9 @@ COPY ./frontend /app
 
 WORKDIR /app
 
+ARG VITE_SOCKET_URL
+ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
+
 RUN npm install
 
 RUN npm run build
@@ -18,6 +21,6 @@ RUN npm install
 
 COPY --from=frontend-builder /app/dist /app/public
 
-expose 3001
+EXPOSE 3001
 
 CMD ["node", "server.js"]

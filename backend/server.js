@@ -2,14 +2,18 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { YSocketIO } from "y-socket.io/dist/server";
+import path from "node:path";
 
 const PORT = Number(process.env.PORT) || 3001;
+const STATIC_DIR = path.resolve("./public");
+const INDEX_FILE = path.join(STATIC_DIR, "index.html");
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 
 const app = express();
 app.use(express.json());
-app.use(express.static("./public"));
+app.use(express.static(STATIC_DIR));
 app.get("/", (_req, res) => {
-  res.sendFile("./public/index.html");
+  res.sendFile(INDEX_FILE);
 });
 app.get("/health", (_req, res) => {
   res.status(200).send("OK");
@@ -18,7 +22,7 @@ app.get("/health", (_req, res) => {
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: CORS_ORIGIN,
     methods: ["GET", "POST"],
   },
 });
@@ -115,6 +119,6 @@ yjsNamespace.on("connection", (socket) => {
 const ysocketio = new YSocketIO(io);
 ysocketio.initialize();
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`QuickPair backend listening on http://localhost:${PORT}`);
 });

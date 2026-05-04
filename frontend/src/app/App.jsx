@@ -61,7 +61,13 @@ function App() {
     }
 
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${wsProtocol}//${window.location.host}`;
+    const { hostname, port } = window.location;
+
+    if (!port || port === "3001") {
+      return `${wsProtocol}//${window.location.host}`;
+    }
+
+    return `${wsProtocol}//${hostname}:3001`;
   }, []);
 
   useEffect(() => {
